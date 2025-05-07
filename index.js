@@ -8,90 +8,138 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const app = express();
 app.use(cors());
 
-// Stripe webhook must be defined before JSON parser
-app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
-    console.log('Received Stripe webhook');
-    let event;
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        req.headers['stripe-signature'],
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-      console.log('Stripe event constructed:', event.type);
-    } catch (err) {
-      console.error('Webhook Error:', err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-  
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
-      const customerEmail = session.customer_details.email;
-      const sub_id = session.subscription;
-
-      console.log('Checkout completed for:', customerEmail);
-  
-      const { data: existingUser, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', customerEmail)
-        .single();
-  
-        if (error) {
-            if (error.code === 'PGRST116') {
-                console.log('No existing record found for:', customerEmail);
-            } else {
-                console.error('Unexpected error querying user:', error);
-                return res.status(500).json({ error: 'Unexpected error querying user' });
-            }
-        }
-  
-      const now = new Date();
-      const sub_from = now.toISOString();
-      const sub_to = new Date(now.setMonth(now.getMonth() + 1)).toISOString();
-  
-      if (existingUser) {
-        console.log('Updating existing user found');
-
-        await supabase
-          .from('users')
-          .update({ status: 'ACTIVE', sub_from, sub_to })
-          .eq('email', customerEmail);
-
-        console.log(`Updated existing user with Email: ${existingUser} Access Key: ${existingUser.access_key}`);
-      } else {
-        console.log('Creating new user');
-
-        const access_key = uuidv4();
-        await supabase.from('users').insert({
-          email: customerEmail,
-          access_key,
-          status: 'ACTIVE',
-          sub_id,
-          sub_from,
-          sub_to,
-          login_count: 0,
-        });
-
-        console.log(`Created new user with Email: ${customerEmail} Access Key: ${access_key}`);
-      }
-    }
-  
-    res.status(200).json({ received: true });
-  });
-
-app.use(bodyParser.json());
-
-// Supabase init
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// Limit login count
+const TARGET_PRODUCT_IDS = ["prod_SGZ6RHTmW6hYrT"];
 const MAX_LOGINS = 20;
 
-// Login
+const updateUserByCustomerId = async (customerId, updates) => {
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('email')
+    .eq('stripe_customer_id', customerId)
+    .single();
+
+  if (error || !user) {
+    console.error('⚠️ User not found for customer ID:', customerId);
+    return;
+  }
+
+  const { error: updateError } = await supabase.from('users').update(updates).eq('email', user.email);
+  if (updateError) {
+    console.error(`❌ Failed to update user ${user.email}:`, updateError);
+  } else {
+    console.log(`✅ User updated: ${user.email}`);
+  }
+};
+
+// Modify the isTargetProduct function to fetch line items and check against multiple product IDs
+const isTargetProduct = async (event) => {
+    const sessionId = event?.data?.object?.id;
+    if (!sessionId) return false;
+  
+    try {
+      // Fetch the session to get line items
+      const session = await stripe.checkout.sessions.retrieve(sessionId, {
+        expand: ['line_items'],
+      });
+  
+      const lineItems = session.line_items?.data || [];
+      return lineItems.some(item => {
+        const price = item?.price;
+        return price?.product && TARGET_PRODUCT_IDS.includes(price.product);
+      });
+    } catch (error) {
+      console.error('Error fetching session details:', error);
+      return false;
+    }
+  };
+
+app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
+  console.log('🔔 Stripe webhook received');
+
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      req.headers['stripe-signature'],
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+    console.log(`✅ Event verified: ${event.type}`);
+  } catch (err) {
+    console.error('❌ Webhook verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (!isTargetProduct(event)) {
+    console.log('🔕 Ignored: Event for unrelated product');
+    return res.status(200).json({ received: true });
+  }
+
+  const now = new Date();
+  const sub_from = now.toISOString();
+  const sub_to = new Date(now.setMonth(now.getMonth() + 1)).toISOString();
+
+  try {
+    const { type, data } = event;
+
+    const session = data.object;
+    const customerId = session.customer;
+
+    if (type === 'checkout.session.completed') {
+      const customerEmail = session.customer_details.customer_email;
+
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', customerEmail)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('❌ Error querying user:', error);
+        return res.status(500).json({ error: 'Unexpected error querying user' });
+      }
+
+      if (user) {
+        await supabase.from('users')
+          .update({ status: 'ACTIVE', sub_from, sub_to, stripe_customer_id: customerId })
+          .eq('email', customerEmail);
+        console.log('🔁 Existing user updated:', customerEmail);
+      } else {
+        await supabase.from('users').insert({
+          email: customerEmail,
+          full_name: '',
+          access_key: uuidv4(),
+          status: 'ACTIVE',
+          sub_from,
+          sub_to,
+          login_count: 0,
+          stripe_customer_id: customerId
+        });
+        console.log('🎉 New user created:', customerEmail);
+      }
+    } else if (type === 'invoice.paid') {
+      await updateUserByCustomerId(customerId, {
+        status: 'ACTIVE',
+        sub_from,
+        sub_to
+      });
+    } else if (type === 'customer.subscription.deleted') {
+      await updateUserByCustomerId(customerId, { status: 'CANCELLED' });
+    }
+  } catch (err) {
+    console.error('🔥 Unhandled error processing webhook event:', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+
+  res.status(200).json({ received: true });
+});
+
+app.use(bodyParser.json());
+
 app.post('/v1/auth/login', async (req, res) => {
   const { access_key } = req.body;
   const { data: user, error } = await supabase
@@ -99,6 +147,7 @@ app.post('/v1/auth/login', async (req, res) => {
     .select('*')
     .eq('access_key', access_key)
     .single();
+
   if (error || !user) return res.status(404).json({ error: 'User not found' });
 
   const now = new Date();
@@ -123,7 +172,6 @@ app.post('/v1/auth/login', async (req, res) => {
   res.json(data);
 });
 
-// Logout
 app.post('/v1/auth/logout', async (req, res) => {
   const { access_key } = req.body;
   const { data: user, error } = await supabase
@@ -131,6 +179,7 @@ app.post('/v1/auth/logout', async (req, res) => {
     .select('*')
     .eq('access_key', access_key)
     .single();
+
   if (error || !user) return res.status(404).json({ error: 'User not found' });
 
   const updatedCount = Math.max(0, user.login_count - 1);
@@ -145,7 +194,6 @@ app.post('/v1/auth/logout', async (req, res) => {
   res.json(data);
 });
 
-// Get user by access key
 app.get('/v1/users/:accessKey', async (req, res) => {
   const { accessKey } = req.params;
   const { data: user, error } = await supabase
@@ -156,7 +204,6 @@ app.get('/v1/users/:accessKey', async (req, res) => {
 
   if (error || !user) return res.status(404).json({ error: 'User not found' });
 
-  // Check if subscription is expired
   const now = new Date();
   const subTo = new Date(user.sub_to);
   if (subTo < now) {
@@ -167,10 +214,9 @@ app.get('/v1/users/:accessKey', async (req, res) => {
   res.json(user);
 });
 
-// App config
 app.get('/v1/app', (req, res) => {
   res.json({ version: '1.0.0' });
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Server running on port ${port}`));
+app.listen(port, () => console.log(`🚀 Server running on port ${port}`));
