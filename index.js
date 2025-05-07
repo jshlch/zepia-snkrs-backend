@@ -95,8 +95,8 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
       // Handle existing user or new user
       if (user) {
         await supabase.from('users')
-          .update({ status: 'ACTIVE', sub_from, sub_to, stripe_customer_id: customerId })
-          .eq('email', customerEmail);
+          .update({ status: 'ACTIVE', sub_from, sub_to })
+          .eq('stripe_customer_id', user.stripe_customer_id);
         console.log('🔁 Existing user updated:', customerEmail);
       } else {
         await supabase.from('users').insert({
