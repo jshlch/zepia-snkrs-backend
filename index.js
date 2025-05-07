@@ -62,7 +62,6 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
         const access_key = uuidv4();
         await supabase.from('users').insert({
           email: customerEmail,
-          full_name: '',
           access_key,
           status: 'ACTIVE',
           sub_from,
