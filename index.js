@@ -23,12 +23,11 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
       console.error('Webhook Error:', err.message);
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
-
-    console.log('Event Type:', event.type);
   
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
-      const customerEmail = session.customer_email;
+      const customerEmail = session.customer_details.email;
+
       console.log('Checkout completed for:', customerEmail);
   
       const { data: existingUser, error } = await supabase
@@ -37,9 +36,14 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
         .eq('email', customerEmail)
         .single();
   
-      if (error) {
-        console.error('Error querying user:', error);
-      }
+        if (error) {
+            if (error.code === 'PGRST116') {
+                console.log('No existing record found for:', customerEmail);
+            } else {
+                console.error('Unexpected error querying user:', error);
+                return res.status(500).json({ error: 'Unexpected error querying user' });
+            }
+        }
   
       const now = new Date();
       const sub_from = now.toISOString();
