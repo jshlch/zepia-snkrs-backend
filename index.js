@@ -10,52 +10,64 @@ app.use(cors());
 
 // Stripe webhook must be defined before JSON parser
 app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(
-      req.body,
-      req.headers['stripe-signature'],
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-  } catch (err) {
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    const customerEmail = session.customer_email;
-
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', customerEmail)
-      .single();
-
-    const now = new Date();
-    const sub_from = now.toISOString();
-    const sub_to = new Date(now.setMonth(now.getMonth() + 1)).toISOString();
-
-    if (existingUser) {
-      await supabase
-        .from('users')
-        .update({ status: 'ACTIVE', sub_from, sub_to })
-        .eq('email', customerEmail);
-    } else {
-      const access_key = uuidv4();
-      await supabase.from('users').insert({
-        email: customerEmail,
-        full_name: '',
-        access_key,
-        status: 'ACTIVE',
-        sub_from,
-        sub_to,
-        login_count: 0,
-      });
+    console.log('Received Stripe webhook');
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        req.headers['stripe-signature'],
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+      console.log('Stripe event constructed:', event.type);
+    } catch (err) {
+      console.error('Webhook Error:', err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
     }
-  }
 
-  res.status(200).json({ received: true });
-});
+    console.log('Event Type:', event.type);
+  
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      const customerEmail = session.customer_email;
+      console.log('Checkout completed for:', customerEmail);
+  
+      const { data: existingUser, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', customerEmail)
+        .single();
+  
+      if (error) {
+        console.error('Error querying user:', error);
+      }
+  
+      const now = new Date();
+      const sub_from = now.toISOString();
+      const sub_to = new Date(now.setMonth(now.getMonth() + 1)).toISOString();
+  
+      if (existingUser) {
+        console.log('Updating existing user');
+        await supabase
+          .from('users')
+          .update({ status: 'ACTIVE', sub_from, sub_to })
+          .eq('email', customerEmail);
+      } else {
+        console.log('Creating new user');
+        const access_key = uuidv4();
+        await supabase.from('users').insert({
+          email: customerEmail,
+          full_name: '',
+          access_key,
+          status: 'ACTIVE',
+          sub_from,
+          sub_to,
+          login_count: 0,
+        });
+      }
+    }
+  
+    res.status(200).json({ received: true });
+  });
 
 app.use(bodyParser.json());
 
