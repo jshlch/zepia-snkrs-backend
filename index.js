@@ -19,7 +19,7 @@ const MAX_LOGINS = 20;
 const updateUserByCustomerId = async (customerId, updates) => {
   const { data: user, error } = await supabase
     .from('users')
-    .select('email')
+    .select('*')
     .eq('stripe_customer_id', customerId)
     .single();
 
@@ -28,11 +28,11 @@ const updateUserByCustomerId = async (customerId, updates) => {
     return;
   }
 
-  const { error: updateError } = await supabase.from('users').update(updates).eq('email', user.email);
+  const { error: updateError } = await supabase.from('users').update(updates).eq('estripe_customer_idmail', user.stripe_customer_id);
   if (updateError) {
-    console.error(`❌ Failed to update user ${user.email}:`, updateError);
+    console.error(`❌ Failed to update user ${customerId}:`, updateError);
   } else {
-    console.log(`✅ User updated: ${user.email}`);
+    console.log(`✅ User updated: ${user.stripe_customer_id}`);
   }
 };
 
