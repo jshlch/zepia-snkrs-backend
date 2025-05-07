@@ -28,7 +28,7 @@ const updateUserByCustomerId = async (customerId, updates) => {
     return;
   }
 
-  const { error: updateError } = await supabase.from('users').update(updates).eq('estripe_customer_idmail', user.stripe_customer_id);
+  const { error: updateError } = await supabase.from('users').update(updates).eq('stripe_customer_id', user.stripe_customer_id);
   if (updateError) {
     console.error(`❌ Failed to update user ${customerId}:`, updateError);
   } else {
