@@ -36,27 +36,14 @@ const updateUserByCustomerId = async (customerId, updates) => {
   }
 };
 
-// Modify the isTargetProduct function to fetch line items and check against multiple product IDs
-const isTargetProduct = async (event) => {
-    const sessionId = event?.data?.object?.id;
-    if (!sessionId) return false;
-  
-    try {
-      // Fetch the session to get line items
-      const session = await stripe.checkout.sessions.retrieve(sessionId, {
-        expand: ['line_items'],
-      });
-  
-      const lineItems = session.line_items?.data || [];
-      return lineItems.some(item => {
-        const price = item?.price;
-        return price?.product && TARGET_PRODUCT_IDS.includes(price.product);
-      });
-    } catch (error) {
-      console.error('Error fetching session details:', error);
-      return false;
-    }
-  };
+// Modify the isTargetProduct function to handle multiple product IDs in invoice.paid events
+const isTargetProduct = (invoice) => {
+  const lineItems = invoice.lines?.data || [];
+  return lineItems.some(item => {
+    const price = item?.price;
+    return price?.product && TARGET_PRODUCT_IDS.includes(price.product);
+  });
+};
 
 app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
   console.log('🔔 Stripe webhook received');
@@ -74,11 +61,6 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  if (!isTargetProduct(event)) {
-    console.log('🔕 Ignored: Event for unrelated product');
-    return res.status(200).json({ received: true });
-  }
-
   const now = new Date();
   const sub_from = now.toISOString();
   const sub_to = new Date(now.setMonth(now.getMonth() + 1)).toISOString();
@@ -86,12 +68,19 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
   try {
     const { type, data } = event;
 
-    const session = data.object;
-    const customerId = session.customer;
+    const invoice = data.object;  // Extract the invoice object
 
-    if (type === 'checkout.session.completed') {
-      const customerEmail = session.customer_details.email;
+    if (type === 'invoice.paid') {
+      // Check if the invoice corresponds to a target product
+      if (!isTargetProduct(invoice)) {
+        console.log('🔕 Ignored: Invoice for unrelated product');
+        return res.status(200).json({ received: true });
+      }
 
+      const customerId = invoice.customer;
+      const customerEmail = invoice.customer_email || '';
+
+      // Query for existing user based on the customerId
       const { data: user, error } = await supabase
         .from('users')
         .select('*')
@@ -103,6 +92,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
         return res.status(500).json({ error: 'Unexpected error querying user' });
       }
 
+      // Handle existing user or new user
       if (user) {
         await supabase.from('users')
           .update({ status: 'ACTIVE', sub_from, sub_to, stripe_customer_id: customerId })
@@ -120,14 +110,9 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
         });
         console.log('🎉 New user created:', customerId);
       }
-    } else if (type === 'invoice.paid') {
-      await updateUserByCustomerId(customerId, {
-        status: 'ACTIVE',
-        sub_from,
-        sub_to
-      });
     } else if (type === 'customer.subscription.deleted') {
-      await updateUserByCustomerId(customerId, { status: 'CANCELLED' });
+      await updateUserByCustomerId(invoice.customer, { status: 'CANCELLED' });
+      console.log(`✅ Subscription cancelled for Customer ID: ${invoice.customer}`);
     }
   } catch (err) {
     console.error('🔥 Unhandled error processing webhook event:', err);
