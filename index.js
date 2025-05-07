@@ -27,6 +27,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
       const customerEmail = session.customer_details.email;
+      const sub_id = session.subscription;
 
       console.log('Checkout completed for:', customerEmail);
   
@@ -66,6 +67,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
           email: customerEmail,
           access_key,
           status: 'ACTIVE',
+          sub_id,
           sub_from,
           sub_to,
           login_count: 0,
