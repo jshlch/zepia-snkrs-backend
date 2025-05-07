@@ -97,7 +97,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
         await supabase.from('users')
           .update({ status: 'ACTIVE', sub_from, sub_to })
           .eq('stripe_customer_id', user.stripe_customer_id);
-        console.log('🔁 Existing user updated:', customerEmail);
+        console.log('🔁 Existing user updated:', user.stripe_customer_id);
       } else {
         await supabase.from('users').insert({
           email: customerEmail,
