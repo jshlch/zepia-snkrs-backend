@@ -90,12 +90,12 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
     const customerId = session.customer;
 
     if (type === 'checkout.session.completed') {
-      const customerEmail = session.customer_details.customer_email;
+      const customerEmail = session.customer_details.email;
 
       const { data: user, error } = await supabase
         .from('users')
         .select('*')
-        .eq('email', customerEmail)
+        .eq('stripe_customer_id', customerId)
         .single();
 
       if (error && error.code !== 'PGRST116') {
@@ -111,7 +111,6 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
       } else {
         await supabase.from('users').insert({
           email: customerEmail,
-          full_name: '',
           access_key: uuidv4(),
           status: 'ACTIVE',
           sub_from,
@@ -119,7 +118,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
           login_count: 0,
           stripe_customer_id: customerId
         });
-        console.log('🎉 New user created:', customerEmail);
+        console.log('🎉 New user created:', customerId);
       }
     } else if (type === 'invoice.paid') {
       await updateUserByCustomerId(customerId, {
