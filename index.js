@@ -50,12 +50,14 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
       const sub_to = new Date(now.setMonth(now.getMonth() + 1)).toISOString();
   
       if (existingUser) {
-        console.log('Updating existing user');
+        console.log('Updating existing user found');
 
         await supabase
           .from('users')
           .update({ status: 'ACTIVE', sub_from, sub_to })
           .eq('email', customerEmail);
+
+        console.log(`Updated existing user with Email: ${existingUser} Access Key: ${existingUser.access_key}`);
       } else {
         console.log('Creating new user');
 
@@ -69,7 +71,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
           login_count: 0,
         });
 
-        console.log(`Created new user with email: ${customerEmail} accessKey: ${access_key}`);
+        console.log(`Created new user with Email: ${customerEmail} Access Key: ${access_key}`);
       }
     }
   
