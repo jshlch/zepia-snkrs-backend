@@ -51,12 +51,14 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
   
       if (existingUser) {
         console.log('Updating existing user');
+
         await supabase
           .from('users')
           .update({ status: 'ACTIVE', sub_from, sub_to })
           .eq('email', customerEmail);
       } else {
         console.log('Creating new user');
+
         const access_key = uuidv4();
         await supabase.from('users').insert({
           email: customerEmail,
@@ -67,6 +69,8 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
           sub_to,
           login_count: 0,
         });
+
+        console.log(`Created new user with email: ${customerEmail} accessKey: ${access_key}`);
       }
     }
   
