@@ -160,7 +160,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
 
   if (updateError) return res.status(500).json({ error: 'Failed to update session_ids' });
 
-  res.json(updatedUser);
+  res.json({session_id, ...updatedUser});
 });
 
 app.post('/api/v1/auth/logout', async (req, res) => {
