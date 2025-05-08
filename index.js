@@ -64,7 +64,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
 
     const session = data.object;  // Extract the session object
 
-    if (type === 'checkout.session') {
+    if (type === 'checkout.session.completed') {
       // Check if the session corresponds to a target product
       if (!isTargetProduct(session)) {
         console.log('🔕 Ignored: session for unrelated product');
