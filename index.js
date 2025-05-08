@@ -207,7 +207,7 @@ app.post('/api/v1/auth/logout', async (req, res) => {
 app.post('/api/v1/checkUser', async (req, res) => {
   const { access_key, session_id } = req.body;
 
-  if (!session_id) return res.status(404).json({ error: 'Your session is invalid' });
+  if (!session_id) return res.status(404).json({ error: 'Session ID is required' });
 
   const { data: user, error } = await supabase
     .from('users')
