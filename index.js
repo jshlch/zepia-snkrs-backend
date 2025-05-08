@@ -137,10 +137,10 @@ app.post('/api/v1/auth/login', async (req, res) => {
   const sessionIds = user.session_ids || []
 
   if (status !== 'ACTIVE') {
-    return res.status(403).json({ error: 'Invalid key' });
+    return res.status(403).json({ error: 'Your access key is invalid' });
   } else if (subTo < now) {
     await supabase.from('users').update({ status: 'EXPIRED' }).eq('access_key', access_key);
-    return res.status(403).json({ error: 'Subscription expired' });
+    return res.status(403).json({ error: 'Your access key is expired' });
   } else if (sessionIds.length >= MAX_SESSIONS ) {
     return res.status(429).json({ error: 'You have reached the maximum sessions per key' });
   }
@@ -152,7 +152,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
   const { data: updatedUser, error: updateError } = await supabase
     .from('users')
     .update({
-      session_ids: [...(user.session_ids || []), session_id]
+      session_ids: [...sessionIds, session_id]
     })
     .eq('access_key', access_key)
     .select()
@@ -160,11 +160,11 @@ app.post('/api/v1/auth/login', async (req, res) => {
 
   if (updateError) return res.status(500).json({ error: 'Failed to update session_ids' });
 
-  res.json({session_id, ...updatedUser});
+  res.json({...updatedUser, session_id});
 });
 
 app.post('/api/v1/auth/logout', async (req, res) => {
-  const { access_key } = req.body;
+  const { access_key, session_id } = req.body;
   const { data: user, error } = await supabase
     .from('users')
     .select('*')
@@ -173,16 +173,33 @@ app.post('/api/v1/auth/logout', async (req, res) => {
 
   if (error || !user) return res.status(404).json({ error: 'User not found' });
 
-  // const updatedCount = Math.max(0, user.login_count - 1);
-  // const { data, error: updateError } = await supabase
-  //   .from('users')
-  //   .update({ login_count: updatedCount })
-  //   .eq('access_key', access_key)
-  //   .select()
-  //   .single();
+  const now = new Date();
+  const subTo = new Date(user.sub_to);
+  const status = user.status
+  const sessionIds = user.session_ids || []
 
-  // if (updateError) return res.status(500).json({ error: 'Failed to update logout count' });
-  res.json(user);
+  if (status !== 'ACTIVE') {
+    return res.status(403).json({ error: 'Your access key is invalid' });
+  } else if (subTo < now) {
+    await supabase.from('users').update({ status: 'EXPIRED' }).eq('access_key', access_key);
+    return res.status(403).json({ error: 'Your access key is expired' });
+  } else if (sessionIds.length >= MAX_SESSIONS ) {
+    return res.status(429).json({ error: 'You have reached the maximum sessions per key' });
+  }
+
+  // Remove session_id from array
+  const { data: updatedUser, error: updateError } = await supabase
+  .from('users')
+  .update({
+    session_ids: [...sessionIds.filter(id => id !== session_id)]
+  })
+  .eq('access_key', access_key)
+  .select()
+  .single();
+
+  if (updateError) return res.status(500).json({ error: 'Failed to update session_ids' });
+
+  res.json(updatedUser);
 });
 
 app.get('/api/v1/users/:accessKey', async (req, res) => {
