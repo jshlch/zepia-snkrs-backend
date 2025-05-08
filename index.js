@@ -183,8 +183,6 @@ app.post('/api/v1/auth/logout', async (req, res) => {
   } else if (subTo < now) {
     await supabase.from('users').update({ status: 'EXPIRED' }).eq('access_key', access_key);
     return res.status(403).json({ error: 'Your access key is expired' });
-  } else if (sessionIds.length >= MAX_SESSIONS ) {
-    return res.status(429).json({ error: 'You have reached the maximum sessions per key' });
   }
 
   // Remove session_id from array
