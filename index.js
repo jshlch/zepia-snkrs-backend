@@ -121,7 +121,7 @@ app.use(bodyParser.json());
 
 
 // APP Endpoints
-app.post('/v1/auth/login', async (req, res) => {
+app.post('/api/v1/auth/login', async (req, res) => {
   const { access_key } = req.body;
   const { data: user, error } = await supabase
     .from('users')
@@ -150,7 +150,7 @@ app.post('/v1/auth/login', async (req, res) => {
   res.json(user);
 });
 
-app.post('/v1/auth/logout', async (req, res) => {
+app.post('/api/v1/auth/logout', async (req, res) => {
   const { access_key } = req.body;
   const { data: user, error } = await supabase
     .from('users')
@@ -172,7 +172,7 @@ app.post('/v1/auth/logout', async (req, res) => {
   res.json(user);
 });
 
-app.get('/v1/users/:accessKey', async (req, res) => {
+app.get('/api/v1/users/:accessKey', async (req, res) => {
   const { accessKey } = req.params;
   const { data: user, error } = await supabase
     .from('users')
@@ -192,7 +192,7 @@ app.get('/v1/users/:accessKey', async (req, res) => {
   res.json(user);
 });
 
-app.get('/v1/app', (req, res) => {
+app.get('/api/v1/app', (req, res) => {
   res.json({ version: '1.0.0' });
 });
 
