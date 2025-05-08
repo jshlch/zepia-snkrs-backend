@@ -207,29 +207,34 @@ app.post('/api/v1/auth/logout', async (req, res) => {
 app.post('/api/v1/checkUser', async (req, res) => {
   const { access_key, session_id } = req.body;
 
-  if (!session_id) return res.status(404).json({ error: 'Session ID is required' });
+  try {
+    if (!session_id) return res.status(404).json({ error: 'Session ID is required' });
 
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('access_key', access_key)
-    .contains('session_ids', [session_id])
-    .single();
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('access_key', access_key)
+      .contains('session_ids', [session_id])
+      .single();
 
-  if (error || !user) return res.status(404).json({ error: 'Your session is invalid' });
-  
-  const now = new Date();
-  const subTo = new Date(user.sub_to);
-  const status = user.status
+    if (error || !user) return res.status(404).json({ error: 'Your session is invalid' });
+    
+    const now = new Date();
+    const subTo = new Date(user.sub_to);
+    const status = user.status
 
-  if (status !== 'ACTIVE') {
-    return res.status(403).json({ error: 'Your access key is invalid' });
-  } else if (subTo < now) {
-    await supabase.from('users').update({ status: 'EXPIRED' }).eq('access_key', access_key);
-    return res.status(403).json({ error: 'Your access key is expired' });
+    if (status !== 'ACTIVE') {
+      return res.status(403).json({ error: 'Your access key is invalid' });
+    } else if (subTo < now) {
+      await supabase.from('users').update({ status: 'EXPIRED' }).eq('access_key', access_key);
+      return res.status(403).json({ error: 'Your access key is expired' });
+    }
+    
+    res.status(200); 
+  } catch (err) {
+    console.error('🔥 Unhandled error checkUser:', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
-  
-  res.status(200);
 });
 
 app.get('/api/v1/app', (req, res) => {
