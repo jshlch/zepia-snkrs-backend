@@ -158,7 +158,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
   if (sessionIds.length >= MAX_SESSIONS)
     return respondError(res, 429, access_key, 'Maximum sessions reached');
 
-  const session_id = crypto.randomUUID();
+  const session_id = uuidv4();
   const { data: updatedUser, error: updateError } = await supabase
     .from('users')
     .update({ session_ids: [...sessionIds, session_id] })
@@ -206,8 +206,8 @@ app.post('/api/v1/auth/logout', async (req, res) => {
   res.json(updatedUser);
 });
 
-// 📌 Check User Endpoint
-app.post('/api/v1/checkUser', async (req, res) => {
+// 📌 Session Validate Endpoint
+app.post('/api/v1/session/validate', async (req, res) => {
   const { access_key, session_id } = req.body;
   console.log(`🔎 [${access_key}] Validating session`);
 
