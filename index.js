@@ -13,7 +13,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-const MAX_LOGINS = 20;
+const MAX_SESSIONS = 3;
 const TARGET_PRODUCT_IDS = ["ZEPIA_SNKRS_TOOL_30_DAYS"];
 
 const updateUserByCustomerId = async (customerId, updates) => {
@@ -133,10 +133,16 @@ app.post('/api/v1/auth/login', async (req, res) => {
 
   const now = new Date();
   const subTo = new Date(user.sub_to);
+  const status = user.status
+  const sessionIds = user.session_ids
 
-  if (subTo < now) {
+  if (status !== 'ACTIVE') {
+    return res.status(403).json({ error: 'Invalid key' });
+  } else if (subTo < now) {
     await supabase.from('users').update({ status: 'EXPIRED' }).eq('access_key', access_key);
     return res.status(403).json({ error: 'Subscription expired' });
+  } else if (sessionIds.length >= MAX_SESSIONS ) {
+    return res.status(429).json({ error: 'You have reached the maximum sessions per key' });
   }
 
   // Generate a new session_id
@@ -148,18 +154,12 @@ app.post('/api/v1/auth/login', async (req, res) => {
     .update({
       session_ids: [...(user.session_ids || []), session_id]
     })
-    .eq('access_key', access_key);
+    .eq('access_key', access_key)
+    .select()
+    .single();
 
   if (updateError) return res.status(500).json({ error: 'Failed to update session_ids' });
 
-  // const { data, error: updateError } = await supabase
-  //   .from('users')
-  //   .update({ login_count: user.login_count + 1 })
-  //   .eq('access_key', access_key)
-  //   .select()
-  //   .single();
-
-  // if (updateError) return res.status(500).json({ error: 'Failed to update login count' });
   res.json(updatedUser);
 });
 
