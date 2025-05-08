@@ -122,6 +122,7 @@ app.use(bodyParser.json());
 
 // APP Endpoints
 app.post('/api/v1/auth/login', async (req, res) => {
+  console.log("Request", req)
   const { access_key } = req.body;
   const { data: user, error } = await supabase
     .from('users')
