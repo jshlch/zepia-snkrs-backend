@@ -134,7 +134,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
   const now = new Date();
   const subTo = new Date(user.sub_to);
   const status = user.status
-  const sessionIds = user.session_ids
+  const sessionIds = user.session_ids || []
 
   if (status !== 'ACTIVE') {
     return res.status(403).json({ error: 'Invalid key' });
