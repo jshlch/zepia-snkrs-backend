@@ -13,8 +13,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-const TARGET_PRODUCT_IDS = ["ZEPIA_SNKRS_TOOL_30_DAYS"];
 const MAX_LOGINS = 20;
+const TARGET_PRODUCT_IDS = ["ZEPIA_SNKRS_TOOL_30_DAYS"];
 
 const updateUserByCustomerId = async (customerId, updates) => {
   const { data: user, error } = await supabase
@@ -39,6 +39,7 @@ const updateUserByCustomerId = async (customerId, updates) => {
 // Modify the isTargetProduct function to check the metadata set inside payment links
 const isTargetProduct = (session) => TARGET_PRODUCT_IDS.includes(session.metadata.ID);
 
+// WEBHOOK
 app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
   console.log('🔔 Stripe webhook received');
 
@@ -118,6 +119,8 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
 
 app.use(bodyParser.json());
 
+
+// APP Endpoints
 app.post('/v1/auth/login', async (req, res) => {
   const { access_key } = req.body;
   const { data: user, error } = await supabase
@@ -132,22 +135,19 @@ app.post('/v1/auth/login', async (req, res) => {
   const subTo = new Date(user.sub_to);
 
   if (subTo < now) {
-    await supabase.from('users').update({ status: 'INACTIVE' }).eq('access_key', access_key);
+    await supabase.from('users').update({ status: 'EXPIRED' }).eq('access_key', access_key);
     return res.status(403).json({ error: 'Subscription expired' });
   }
 
-  if (user.login_count >= MAX_LOGINS)
-    return res.status(403).json({ error: 'Maximum login limit reached' });
+  // const { data, error: updateError } = await supabase
+  //   .from('users')
+  //   .update({ login_count: user.login_count + 1 })
+  //   .eq('access_key', access_key)
+  //   .select()
+  //   .single();
 
-  const { data, error: updateError } = await supabase
-    .from('users')
-    .update({ login_count: user.login_count + 1 })
-    .eq('access_key', access_key)
-    .select()
-    .single();
-
-  if (updateError) return res.status(500).json({ error: 'Failed to update login count' });
-  res.json(data);
+  // if (updateError) return res.status(500).json({ error: 'Failed to update login count' });
+  res.json(user);
 });
 
 app.post('/v1/auth/logout', async (req, res) => {
@@ -160,16 +160,16 @@ app.post('/v1/auth/logout', async (req, res) => {
 
   if (error || !user) return res.status(404).json({ error: 'User not found' });
 
-  const updatedCount = Math.max(0, user.login_count - 1);
-  const { data, error: updateError } = await supabase
-    .from('users')
-    .update({ login_count: updatedCount })
-    .eq('access_key', access_key)
-    .select()
-    .single();
+  // const updatedCount = Math.max(0, user.login_count - 1);
+  // const { data, error: updateError } = await supabase
+  //   .from('users')
+  //   .update({ login_count: updatedCount })
+  //   .eq('access_key', access_key)
+  //   .select()
+  //   .single();
 
-  if (updateError) return res.status(500).json({ error: 'Failed to update logout count' });
-  res.json(data);
+  // if (updateError) return res.status(500).json({ error: 'Failed to update logout count' });
+  res.json(user);
 });
 
 app.get('/v1/users/:accessKey', async (req, res) => {
