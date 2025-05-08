@@ -95,13 +95,13 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
         console.log('🔁 Existing user updated:', user.stripe_customer_id);
       } else {
         await supabase.from('users').insert({
-          email: customerEmail,
-          access_key: uuidv4(),
           status: 'ACTIVE',
+          stripe_customer_id: customerId,
+          access_key: uuidv4(),
+          email: customerEmail,
           sub_from,
           sub_to,
-          login_count: 0,
-          stripe_customer_id: customerId
+          active_tasks: 0,
         });
         console.log('🎉 New user created:', customerId);
       }
@@ -122,7 +122,6 @@ app.use(bodyParser.json());
 
 // APP Endpoints
 app.post('/api/v1/auth/login', async (req, res) => {
-  console.log("Request", req)
   const { access_key } = req.body;
   const { data: user, error } = await supabase
     .from('users')
@@ -140,6 +139,19 @@ app.post('/api/v1/auth/login', async (req, res) => {
     return res.status(403).json({ error: 'Subscription expired' });
   }
 
+  // Generate a new session_id
+  const session_id = crypto.randomUUID();
+
+  // Append session_id to array
+  const { data: updatedUser, error: updateError } = await supabase
+    .from('users')
+    .update({
+      session_ids: [...(user.session_ids || []), session_id]
+    })
+    .eq('access_key', access_key);
+
+  if (updateError) return res.status(500).json({ error: 'Failed to update session_ids' });
+
   // const { data, error: updateError } = await supabase
   //   .from('users')
   //   .update({ login_count: user.login_count + 1 })
@@ -148,7 +160,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
   //   .single();
 
   // if (updateError) return res.status(500).json({ error: 'Failed to update login count' });
-  res.json(user);
+  res.json(updatedUser);
 });
 
 app.post('/api/v1/auth/logout', async (req, res) => {
