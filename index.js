@@ -120,121 +120,119 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
 app.use(bodyParser.json());
 
 
-// APP Endpoints
+// 🧰 Utility: respond with error and log
+function respondError(res, statusCode, accessKey, message) {
+  console.error(`❌ [${accessKey}] ${message}`);
+  return res.status(statusCode).json({ error: message });
+}
+
+// 🧰 Utility: fetch user with logs
+async function getUserByAccessKey(access_key) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('access_key', access_key)
+    .single();
+
+  if (error || !data) return { user: null, error: 'User not found' };
+  return { user: data, error: null };
+}
+
+// 📌 Login Endpoint
 app.post('/api/v1/auth/login', async (req, res) => {
   const { access_key } = req.body;
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('access_key', access_key)
-    .single();
+  console.log(`🔑 [${access_key}] Attempting login`);
 
-  if (error || !user) return res.status(404).json({ error: 'User not found' });
+  const { user, error } = await getUserByAccessKey(access_key);
+  if (error) return respondError(res, 404, access_key, error);
 
   const now = new Date();
   const subTo = new Date(user.sub_to);
-  const status = user.status
-  const sessionIds = user.session_ids || []
+  const sessionIds = user.session_ids || [];
 
-  if (status !== 'ACTIVE') {
-    return res.status(403).json({ error: 'Your access key is invalid' });
-  } else if (subTo < now) {
+  if (user.status !== 'ACTIVE') return respondError(res, 403, access_key, 'Access key is invalid');
+  if (subTo < now) {
     await supabase.from('users').update({ status: 'EXPIRED' }).eq('access_key', access_key);
-    return res.status(403).json({ error: 'Your access key is expired' });
-  } else if (sessionIds.length >= MAX_SESSIONS ) {
-    return res.status(429).json({ error: 'You have reached the maximum sessions per key' });
+    return respondError(res, 403, access_key, 'Access key is expired');
   }
+  if (sessionIds.length >= MAX_SESSIONS)
+    return respondError(res, 429, access_key, 'Maximum sessions reached');
 
-  // Generate a new session_id
   const session_id = crypto.randomUUID();
-
-  // Append session_id to array
   const { data: updatedUser, error: updateError } = await supabase
     .from('users')
-    .update({
-      session_ids: [...sessionIds, session_id]
-    })
+    .update({ session_ids: [...sessionIds, session_id] })
     .eq('access_key', access_key)
     .select()
     .single();
 
-  if (updateError) return res.status(500).json({ error: 'Failed to update session_ids' });
+  if (updateError) return respondError(res, 500, access_key, 'Failed to update session_ids');
 
-  res.json({...updatedUser, session_id});
+  console.log(`✅ [${access_key}] Login successful with session_id: ${session_id}`);
+  res.json({ ...updatedUser, session_id });
 });
 
+// 📌 Logout Endpoint
 app.post('/api/v1/auth/logout', async (req, res) => {
   const { access_key, session_id } = req.body;
+  console.log(`🔐 [${access_key}] Attempting logout`);
+
+  const { user, error } = await getUserByAccessKey(access_key);
+  if (error) return respondError(res, 404, access_key, error);
+
+  const now = new Date();
+  const subTo = new Date(user.sub_to);
+  const sessionIds = user.session_ids || [];
+
+  if (user.status !== 'ACTIVE') return respondError(res, 403, access_key, 'Access key is invalid');
+  if (subTo < now) {
+    await supabase.from('users').update({ status: 'EXPIRED' }).eq('access_key', access_key);
+    return respondError(res, 403, access_key, 'Access key is expired');
+  }
+
+  if (!session_id) return res.json(user); // No session_id to remove
+
+  const updatedSessions = sessionIds.filter(id => id !== session_id);
+  const { data: updatedUser, error: updateError } = await supabase
+    .from('users')
+    .update({ session_ids: updatedSessions })
+    .eq('access_key', access_key)
+    .select()
+    .single();
+
+  if (updateError) return respondError(res, 500, access_key, 'Failed to update session_ids');
+
+  console.log(`👋 [${access_key}] Logout successful for session_id: ${session_id}`);
+  res.json(updatedUser);
+});
+
+// 📌 Check User Endpoint
+app.post('/api/v1/checkUser', async (req, res) => {
+  const { access_key, session_id } = req.body;
+  console.log(`🔎 [${access_key}] Validating session`);
+
+  if (!session_id) return respondError(res, 400, access_key, 'Session ID is required');
+
   const { data: user, error } = await supabase
     .from('users')
     .select('*')
     .eq('access_key', access_key)
+    .contains('session_ids', [session_id])
     .single();
 
-  if (error || !user) return res.status(404).json({ error: 'User not found' });
+  if (error || !user) return respondError(res, 404, access_key, 'Session is invalid');
 
   const now = new Date();
   const subTo = new Date(user.sub_to);
-  const status = user.status
-  const sessionIds = user.session_ids || []
 
-  if (status !== 'ACTIVE') {
-    return res.status(403).json({ error: 'Your access key is invalid' });
-  } else if (subTo < now) {
+  if (user.status !== 'ACTIVE') return respondError(res, 403, access_key, 'Access key is invalid');
+  if (subTo < now) {
     await supabase.from('users').update({ status: 'EXPIRED' }).eq('access_key', access_key);
-    return res.status(403).json({ error: 'Your access key is expired' });
+    return respondError(res, 403, access_key, 'Access key is expired');
   }
 
-  // Remove session_id from array
-  if (session_id) {
-    const { data: updatedUser, error: updateError } = await supabase
-    .from('users')
-    .update({
-      session_ids: [...sessionIds.filter(id => id !== session_id)]
-    })
-    .eq('access_key', access_key)
-    .select()
-    .single();
-
-    if (updateError) return res.status(500).json({ error: 'Failed to update session_ids' });
-
-    res.json(updatedUser);
-  }
-
-  res.json(user);
-});
-
-app.post('/api/v1/checkUser', async (req, res) => {
-  const { access_key, session_id } = req.body;
-
-  try {
-    if (!session_id) return res.status(404).json({ error: 'Session ID is required' });
-
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('access_key', access_key)
-      .contains('session_ids', [session_id])
-      .single();
-
-    if (error || !user) return res.status(404).json({ error: 'Your session is invalid' });
-    
-    const now = new Date();
-    const subTo = new Date(user.sub_to);
-    const status = user.status
-
-    if (status !== 'ACTIVE') {
-      return res.status(403).json({ error: 'Your access key is invalid' });
-    } else if (subTo < now) {
-      await supabase.from('users').update({ status: 'EXPIRED' }).eq('access_key', access_key);
-      return res.status(403).json({ error: 'Your access key is expired' });
-    }
-    
-    res.status(200); 
-  } catch (err) {
-    console.error('🔥 Unhandled error checkUser:', err);
-    return res.status(500).json({ error: 'Internal Server Error' });
-  }
+  console.log(`🟢 [${access_key}] Session valid`);
+  res.status(200).json({ status: 'valid' });
 });
 
 app.get('/api/v1/app', (req, res) => {
