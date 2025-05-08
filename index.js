@@ -13,7 +13,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-const TARGET_PRODUCT_IDS = ["prod_SGZ6RHTmW6hYrT"];
+const TARGET_PRODUCT_IDS = ["ZEPIA_SNKRS_TOOL_30_DAYS"];
 const MAX_LOGINS = 20;
 
 const updateUserByCustomerId = async (customerId, updates) => {
@@ -36,14 +36,8 @@ const updateUserByCustomerId = async (customerId, updates) => {
   }
 };
 
-// Modify the isTargetProduct function to handle multiple product IDs in invoice.paid events
-const isTargetProduct = (invoice) => {
-  const lineItems = invoice.lines?.data || [];
-  return lineItems.some(item => {
-    const price = item?.price;
-    return price?.product && TARGET_PRODUCT_IDS.includes(price.product);
-  });
-};
+// Modify the isTargetProduct function to check the metadata set inside payment links
+const isTargetProduct = (session) => TARGET_PRODUCT_IDS.includes(session.metadata.ID);
 
 app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
   console.log('🔔 Stripe webhook received');
@@ -68,17 +62,17 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
   try {
     const { type, data } = event;
 
-    const invoice = data.object;  // Extract the invoice object
+    const session = data.object;  // Extract the session object
 
-    if (type === 'invoice.paid') {
-      // Check if the invoice corresponds to a target product
-      if (!isTargetProduct(invoice)) {
-        console.log('🔕 Ignored: Invoice for unrelated product');
+    if (type === 'checkout.session') {
+      // Check if the session corresponds to a target product
+      if (!isTargetProduct(session)) {
+        console.log('🔕 Ignored: session for unrelated product');
         return res.status(200).json({ received: true });
       }
 
-      const customerId = invoice.customer;
-      const customerEmail = invoice.customer_email || '';
+      const customerId = session.customer;
+      const customerEmail = session.customer_details.email || '';
 
       // Query for existing user based on the customerId
       const { data: user, error } = await supabase
@@ -111,8 +105,8 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
         console.log('🎉 New user created:', customerId);
       }
     } else if (type === 'customer.subscription.deleted') {
-      await updateUserByCustomerId(invoice.customer, { status: 'CANCELLED' });
-      console.log(`✅ Subscription cancelled for Customer ID: ${invoice.customer}`);
+      await updateUserByCustomerId(session.customer, { status: 'CANCELLED' });
+      console.log(`✅ Subscription cancelled for Customer ID: ${session.customer}`);
     }
   } catch (err) {
     console.error('🔥 Unhandled error processing webhook event:', err);
