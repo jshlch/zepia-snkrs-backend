@@ -232,7 +232,7 @@ app.post('/api/v1/session/validate', async (req, res) => {
   }
 
   console.log(`🟢 [${access_key}] Session valid`);
-  res.status(200).json({ status: 'valid' });
+  res.json(user);
 });
 
 app.get('/api/v1/app', (req, res) => {
