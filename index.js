@@ -172,10 +172,10 @@ app.post('/api/v1/auth/login', async (req, res) => {
   res.json({ ...updatedUser, session_id });
 });
 
-// 📌 Logout Endpoint
-app.post('/api/v1/auth/logout', async (req, res) => {
+// 📌 Unbind Endpoint
+app.post('/api/v1/auth/unbind', async (req, res) => {
   const { access_key, session_id } = req.body;
-  console.log(`🔐 [${access_key}] Attempting logout`);
+  console.log(`🔐 [${access_key}] Attempting unbind key`);
 
   const { user, error } = await getUserByAccessKey(access_key);
   if (error) return respondError(res, 404, access_key, error);
@@ -202,7 +202,7 @@ app.post('/api/v1/auth/logout', async (req, res) => {
 
   if (updateError) return respondError(res, 500, access_key, 'Failed to update session_ids');
 
-  console.log(`👋 [${access_key}] Logout successful for session_id: ${session_id}`);
+  console.log(`👋 [${access_key}] Unbind successful for session_id: ${session_id}`);
   res.json(updatedUser);
 });
 
