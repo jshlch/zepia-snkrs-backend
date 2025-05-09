@@ -138,10 +138,10 @@ async function getUserByAccessKey(access_key) {
   return { user: data, error: null };
 }
 
-// 📌 Login Endpoint
-app.post('/api/v1/auth/login', async (req, res) => {
+// 📌 Bind Endpoint
+app.post('/api/v1/auth/bind', async (req, res) => {
   const { access_key } = req.body;
-  console.log(`🔑 [${access_key}] Attempting login`);
+  console.log(`🔑 [${access_key}] Attempting bind`);
 
   const { user, error } = await getUserByAccessKey(access_key);
   if (error) return respondError(res, 404, access_key, error);
@@ -168,7 +168,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
 
   if (updateError) return respondError(res, 500, access_key, 'Failed to update session_ids');
 
-  console.log(`✅ [${access_key}] Login successful with session_id: ${session_id}`);
+  console.log(`✅ [${access_key}] Bind successful with session_id: ${session_id}`);
   res.json({ ...updatedUser, session_id });
 });
 
