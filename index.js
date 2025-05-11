@@ -60,10 +60,6 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  const now = new Date();
-  const sub_from = now.toISOString();
-  const sub_to = new Date(now.setMonth(now.getMonth() + 1)).toISOString();
-
   try {
     const { type, data } = event;
     const session = data.object;  // Extract the session object
@@ -78,30 +74,52 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
       const customerId = session.customer;
       const paymentId = session.payment_intent;
       const customerEmail = session.customer_details.email || '';
+      const isRenewal = isForRenewal(session);
+      const accessKeyFromCustomFields = session.custom_fields?.[0]?.text?.value;
+      const accessKey = accessKeyFromCustomFields || uuidv4();
 
-      if (isForRenewal(session)) {
-        // Handle access key renewal
-        const accessKey = session.custom_fields[0].text.value
-        await supabase.from('users')
-          .update({ payment_id: paymentId, stripe_customer_id: customerId, status: 'ACTIVE', sub_from, sub_to })
-          .eq('access_key', accessKey)
+      // Subscription dates
+      const now = new Date();
+      const sub_from = now.toISOString();
+      const sub_to = new Date(now.setMonth(now.getMonth() + 1)).toISOString();
+      
+      const { data: user } = isRenewal
+        ? await supabase
+            .from('users')
+            .select('*')
+            .eq('access_key', accessKeyFromCustomFields)
+            .single()
+        : { data: null };
+      
+      // Check if the payment is for renewal and the key provided is valid
+      if (isRenewal && user) {
+        await supabase
+          .from('users')
+          .update({
+            payment_id: paymentId,
+            stripe_customer_id: customerId,
+            status: 'ACTIVE',
+            sub_from,
+            sub_to,
+          })
+          .eq('access_key', accessKeyFromCustomFields)
           .select()
           .single();
+      
         console.log('🔁 User:', customerId);
-        console.log('🔁 Access key renewal updated:', accessKey);
+        console.log('🔁 Access key renewal updated:', accessKeyFromCustomFields);
       } else {
-        // Handle new user
-        const accessKey = uuidv4()
         await supabase.from('users').insert({
           status: 'ACTIVE',
           payment_id: paymentId,
           stripe_customer_id: customerId,
-          access_key: uuidv4(),
+          access_key,
           email: customerEmail,
           sub_from,
           sub_to,
           session_ids: [],
         });
+      
         console.log('🎉 New user created:', customerId);
         console.log('🎉 Access key:', accessKey);
       }
