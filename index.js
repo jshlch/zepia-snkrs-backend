@@ -94,6 +94,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
         await supabase
           .from('users')
           .update({
+            email: customerEmail,
             payment_id: paymentId,
             stripe_customer_id: customerId,
             status: 'ACTIVE',
