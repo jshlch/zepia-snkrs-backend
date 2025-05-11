@@ -100,7 +100,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
             sub_from,
             sub_to,
           })
-          .eq('access_key', accessKey)
+          .eq('access_key', user.access_key)
           .select()
           .single();
       
