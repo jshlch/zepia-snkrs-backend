@@ -16,28 +16,32 @@ const supabase = createClient(
 const MAX_SESSIONS = 3;
 const TARGET_PRODUCT_IDS = ["ZEPIA_SNKRS_TOOL_30_DAYS"];
 
-const updateUserByCustomerId = async (customerId, updates) => {
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('stripe_customer_id', customerId)
-    .single();
+// USEFUL FOR RECURRING PAYMENTS
+// const updateUserByCustomerId = async (customerId, updates) => {
+//   const { data: user, error } = await supabase
+//     .from('users')
+//     .select('*')
+//     .eq('stripe_customer_id', customerId)
+//     .single();
 
-  if (error || !user) {
-    console.error('⚠️ User not found for customer ID:', customerId);
-    return;
-  }
+//   if (error || !user) {
+//     console.error('⚠️ User not found for customer ID:', customerId);
+//     return;
+//   }
 
-  const { error: updateError } = await supabase.from('users').update(updates).eq('stripe_customer_id', user.stripe_customer_id);
-  if (updateError) {
-    console.error(`❌ Failed to update user ${customerId}:`, updateError);
-  } else {
-    console.log(`✅ User updated: ${user.stripe_customer_id}`);
-  }
-};
+//   const { error: updateError } = await supabase.from('users').update(updates).eq('stripe_customer_id', user.stripe_customer_id);
+//   if (updateError) {
+//     console.error(`❌ Failed to update user ${customerId}:`, updateError);
+//   } else {
+//     console.log(`✅ User updated: ${user.stripe_customer_id}`);
+//   }
+// };
 
 // Modify the isTargetProduct function to check the metadata set inside payment links
 const isTargetProduct = (session) => TARGET_PRODUCT_IDS.includes(session.metadata.ID);
+
+// Modify the isTargetProduct function to check the metadata set inside payment links
+const isForRenewal = (session) => (session.custom_fields || []).length > 0;
 
 // WEBHOOK
 app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
@@ -74,25 +78,19 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
       const customerId = session.customer;
       const customerEmail = session.customer_details.email || '';
 
-      // Query for existing user based on the customerId
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('stripe_customer_id', customerId)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('❌ Error querying user:', error);
-        return res.status(500).json({ error: 'Unexpected error querying user' });
-      }
-
-      // Handle existing user or new user
-      if (user) {
-        await supabase.from('users')
+      if (isForRenewal(session)) {
+        // Handle access key renewal
+        const accessKey = session.custom_fields[0].text.value
+        const { data: user } = await supabase.from('users')
           .update({ status: 'ACTIVE', sub_from, sub_to })
-          .eq('stripe_customer_id', user.stripe_customer_id);
-        console.log('🔁 Existing user updated:', user.stripe_customer_id);
+          .eq('access_key', accessKey)
+          .select()
+          .single();
+        console.log('🔁 User:', user.stripe_customer_id);
+        console.log('🔁 Access key renewal updated:', accessKey);
       } else {
+        // Handle new user
+        const accessKey = uuidv4()
         await supabase.from('users').insert({
           status: 'ACTIVE',
           stripe_customer_id: customerId,
@@ -103,11 +101,13 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
           session_ids: [],
         });
         console.log('🎉 New user created:', customerId);
+        console.log('🎉 Access key:', accessKey);
       }
-    } else if (type === 'customer.subscription.deleted') {
-      await updateUserByCustomerId(session.customer, { status: 'CANCELLED' });
-      console.log(`✅ Subscription cancelled for Customer ID: ${session.customer}`);
-    }
+    } 
+    // else if (type === 'customer.subscription.deleted') {
+    //   await updateUserByCustomerId(session.customer, { status: 'CANCELLED' });
+    //   console.log(`✅ Subscription cancelled for Customer ID: ${session.customer}`);
+    // }
   } catch (err) {
     console.error('🔥 Unhandled error processing webhook event:', err);
     return res.status(500).json({ error: 'Internal Server Error' });
@@ -152,7 +152,7 @@ app.post('/api/v1/auth/bind', async (req, res) => {
   if (user.status !== 'ACTIVE') return respondError(res, 403, access_key, 'Access key is invalid');
   if (subTo < now) {
     await supabase.from('users').update({ status: 'EXPIRED' }).eq('access_key', access_key);
-    return respondError(res, 403, access_key, 'Access key is expired');
+    return respondError(res, 403, access_key, 'Access key is already expired');
   }
   if (sessionIds.length >= MAX_SESSIONS)
     return respondError(res, 429, access_key, 'Maximum sessions reached');
