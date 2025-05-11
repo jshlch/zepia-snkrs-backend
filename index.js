@@ -105,7 +105,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
           .single();
       
         console.log('🔁 User:', customerId);
-        console.log('🔁 Access key renewal updated:', accessKey);
+        console.log('🔁 Access key renewal updated:', user.access_key);
       } else {
         await supabase.from('users').insert({
           status: 'ACTIVE',
