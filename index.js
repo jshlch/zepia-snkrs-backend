@@ -217,18 +217,33 @@ app.post('/api/v1/session/validate', async (req, res) => {
     .from('users')
     .select('*')
     .eq('access_key', access_key)
-    .contains('session_ids', [session_id])
     .single();
 
-  if (error || !user) return respondError(res, 404, access_key, 'Session is invalid');
+  if (error) {
+    return respondError(res, 500, access_key, 'Something went wrong');
+  } else if (!user) {
+    return respondError(res, 404, access_key, 'Access key is invalid');
+  } else {
+    const now = new Date();
+    const subTo = new Date(user.sub_to);
+    const sessionIds = user.session_ids || []
+    const isSessionValid = sessionIds.includes(session_id)
 
-  const now = new Date();
-  const subTo = new Date(user.sub_to);
+    // Check the status of the key
+    if (user.status !== 'ACTIVE') {
+      if (isSessionValid) {
+        const updatedSessions = sessionIds.filter(id => id !== session_id);
+        await supabase.from('users').update({ session_ids: updatedSessions }).eq('access_key', access_key);
+      }
+      return respondError(res, 403, access_key, 'Access key is invalid')
+    };
 
-  if (user.status !== 'ACTIVE') return respondError(res, 403, access_key, 'Access key is invalid');
-  if (subTo < now) {
-    await supabase.from('users').update({ status: 'EXPIRED' }).eq('access_key', access_key);
-    return respondError(res, 403, access_key, 'Access key is expired');
+    // Check if the key is already expired
+    if (subTo < now) {
+      let params = isSessionValid ? { status: 'EXPIRED', session_ids: updatedSessions } : { status: 'EXPIRED' }
+      await supabase.from('users').update(params).eq('access_key', access_key);
+      return respondError(res, 403, access_key, 'Access key is already expired');
+    }
   }
 
   console.log(`🟢 [${access_key}] Session valid`);
