@@ -108,11 +108,12 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
         console.log('🔁 User:', customerId);
         console.log('🔁 Access key renewal updated:', user.access_key);
       } else {
+        const accessKey = uuidv4()
         await supabase.from('users').insert({
           status: 'ACTIVE',
           payment_id: paymentId,
           stripe_customer_id: customerId,
-          access_key: uuidv4(),
+          access_key: accessKey,
           email: customerEmail,
           sub_from,
           sub_to,
