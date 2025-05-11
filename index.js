@@ -76,23 +76,25 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
       }
 
       const customerId = session.customer;
+      const paymentId = session.payment_intent;
       const customerEmail = session.customer_details.email || '';
 
       if (isForRenewal(session)) {
         // Handle access key renewal
         const accessKey = session.custom_fields[0].text.value
-        const { data: user } = await supabase.from('users')
-          .update({ status: 'ACTIVE', sub_from, sub_to })
+        await supabase.from('users')
+          .update({ payment_id: paymentId, stripe_customer_id: customerId, status: 'ACTIVE', sub_from, sub_to })
           .eq('access_key', accessKey)
           .select()
           .single();
-        console.log('🔁 User:', user.stripe_customer_id);
+        console.log('🔁 User:', customerId);
         console.log('🔁 Access key renewal updated:', accessKey);
       } else {
         // Handle new user
         const accessKey = uuidv4()
         await supabase.from('users').insert({
           status: 'ACTIVE',
+          payment_id: paymentId,
           stripe_customer_id: customerId,
           access_key: uuidv4(),
           email: customerEmail,
