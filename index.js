@@ -62,7 +62,6 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
 
   try {
     const { type, data } = event;
-
     const session = data.object;  // Extract the session object
 
     if (type === 'checkout.session.completed') {
@@ -101,7 +100,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
           email: customerEmail,
           sub_from,
           sub_to,
-          active_tasks: 0,
+          session_ids: [],
         });
         console.log('🎉 New user created:', customerId);
       }
