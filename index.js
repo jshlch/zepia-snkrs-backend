@@ -240,7 +240,7 @@ app.post('/api/v1/session/validate', async (req, res) => {
 
     // Check if the key is already expired
     if (subTo < now) {
-      let params = isSessionValid ? { status: 'EXPIRED', session_ids: updatedSessions } : { status: 'EXPIRED' }
+      let params = isSessionValid ? { status: 'EXPIRED', session_ids: sessionIds.filter(id => id !== session_id) } : { status: 'EXPIRED' }
       await supabase.from('users').update(params).eq('access_key', access_key);
       return respondError(res, 403, access_key, 'Access key is already expired');
     }
