@@ -80,7 +80,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
       // Subscription dates
       const now = new Date();
       const sub_from = now.toISOString();
-      const sub_to = new Date(now.setMonth(now.getMonth() + 1)).toISOString();
+      const sub_to = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
       
       const { data: user } = isRenewal
         ? await supabase
