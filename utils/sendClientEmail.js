@@ -31,7 +31,6 @@ async function sendClientEmail({ to, accessKey, isRenewal }) {
       });
 
     console.log('📧 Email sent to:', to);
-    console.log('🔑 Access key:', accessKey);
   } catch (error) {
     console.error('❌ Failed to send email:', error);
   }
