@@ -8,25 +8,34 @@ async function sendClientEmail({ to, accessKey, isRenewal }) {
     await resend.emails.send({
         from: 'Zepia <no-reply@zepia.online>', // Use your verified domain
         to,
-        subject: isRenewal ? '🔁 Your Zepia Subscription Has Been Renewed' : '🎉 Welcome to Zepia!',
+        subject: isRenewal ? 'Your Zepia Subscription Has Been Renewed' : 'Welcome to Zepia!',
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee;">
-            <p style="font-size: 16px; color: #555;">Hi there,</p>
+          <div style="max-width: 600px; margin: auto; background-color: #ffffff; padding: 40px; border-radius: 10px; font-family: Arial, sans-serif; color: #333; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
   
-            <p style="font-size: 16px; color: #555;">
-              ${isRenewal 
-                ? "We're happy to let you know that your Zepia Snkrs Automation Tool access key has been successfully renewed." 
-                : "Thank you for subscribing to Zepia – your automation companion for sneaker drops!"}
-            </p>
-  
-            <p style="font-size: 16px; color: #000; font-weight: bold;">
-              Your Access Key: <code style="background: #f4f4f4; padding: 4px 8px; border-radius: 4px;">${accessKey}</code>
-            </p>
-  
-            <p style="font-size: 16px; color: #555;">Keep this key safe – it's your access to our automation tools.</p>
-  
-            <p style="font-size: 14px; color: #777;">Thanks for trusting Zepia.<br>– The Zepia Team</p>
+          <div style="text-align: center;">
+            <h2 style="font-size: 24px; margin-bottom: 10px;">${isRenewal ? 'Subscription Renewed' : 'Welcome to Zepia'}</h2>
           </div>
+
+          <p style="font-size: 16px; line-height: 1.5;">
+            Hi there,<br><br>
+            ${isRenewal
+              ? 'We’re happy to let you know that your subscription to Zepia has been successfully renewed.'
+              : 'Thank you for subscribing to Zepia – your automation companion for sneaker drops!'}
+          </p>
+
+          <p style="font-size: 16px; line-height: 1.5;">
+            <strong>Your Access Key:</strong><br>
+            <code style="display: inline-block; margin-top: 8px; background: #f4f4f4; padding: 10px 15px; border-radius: 6px; font-size: 18px; font-weight: bold;">${accessKey}</code>
+          </p>
+
+          <p style="font-size: 14px; color: #666;">
+            If this wasn’t you, please <a href="mailto:support@zepia.online" style="color: #000; text-decoration: underline;">let us know</a>.
+          </p>
+
+          <p style="margin-top: 30px; font-size: 14px; color: #999;">
+            — The Zepia Team
+          </p>
+        </div>
         `,
       });
 

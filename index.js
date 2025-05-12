@@ -42,7 +42,7 @@ const TARGET_PRODUCT_IDS = ["ZEPIA_SNKRS_TOOL_30_DAYS"];
 const isTargetProduct = (session) => TARGET_PRODUCT_IDS.includes(session.metadata.ID);
 
 // Modify the isTargetProduct function to check the metadata set inside payment links
-const isForRenewal = (session) => (session.custom_fields || []).length > 0;
+const isForRenewal = (session) => session.custom_fields?.[0]?.text?.value !== null;
 
 // WEBHOOK
 app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
