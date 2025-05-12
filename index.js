@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const { v4: uuidv4 } = require('uuid');
+const { sendClientEmail } = require('./utils/sendClientEmail');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
@@ -102,9 +103,9 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
             sub_to,
           })
           .eq('access_key', user.access_key)
-          .select()
-          .single();
-      
+
+        sendClientEmail({ to: customerEmail, accessKey: user.access_key, isRenewal })
+
         console.log('🔁 User:', customerId);
         console.log('🔁 Access key renewal updated:', user.access_key);
       } else {
@@ -119,10 +120,12 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
           sub_to,
           session_ids: [],
         });
-      
+
+        sendClientEmail({ to: customerEmail, accessKey, isRenewal })
         console.log('🎉 New user created:', customerId);
         console.log('🎉 Access key:', accessKey);
       }
+      
     } 
     // else if (type === 'customer.subscription.deleted') {
     //   await updateUserByCustomerId(session.customer, { status: 'CANCELLED' });
