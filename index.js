@@ -4,7 +4,7 @@ const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const { v4: uuidv4 } = require('uuid');
 const { sendClientEmail } = require('./utils/sendClientEmail');
-const { webhooks } = require('stripe');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 app.use(cors());
@@ -50,7 +50,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
 
   let event;
   try {
-    event = webhooks.constructEvent(
+    event = stripe.webhooks.constructEvent(
       req.body,
       req.headers['stripe-signature'],
       process.env.STRIPE_WEBHOOK_SECRET
