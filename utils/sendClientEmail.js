@@ -8,7 +8,7 @@ async function sendClientEmail({ to, accessKey, isRenewal }) {
     await resend.emails.send({
         from: 'Zepia <no-reply@zepia.online>', // Use your verified domain
         to,
-        subject: isRenewal ? 'Your Zepia Subscription Has Been Renewed' : 'Welcome to Zepia!',
+        subject: 'Zepia - Checkout Completed',
         html: `
           <div style="max-width: 600px; margin: auto; background-color: #ffffff; padding: 40px; border-radius: 10px; font-family: Arial, sans-serif; color: #333; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
   
@@ -24,16 +24,16 @@ async function sendClientEmail({ to, accessKey, isRenewal }) {
           </p>
 
           <p style="font-size: 16px; line-height: 1.5;">
-            <strong>Your Access Key:</strong><br>
+            <strong>Access key:</strong><br>
             <code style="display: inline-block; margin-top: 8px; background: #f4f4f4; padding: 10px 15px; border-radius: 6px; font-size: 18px; font-weight: bold;">${accessKey}</code>
           </p>
 
-          <p style="font-size: 14px; color: #666;">
-            If this wasn’t you, please <a href="mailto:support@zepia.online" style="color: #000; text-decoration: underline;">let us know</a>.
+          <p style="font-size: 16px;">
+            Thank you!
           </p>
 
           <p style="margin-top: 30px; font-size: 14px; color: #999;">
-            — The Zepia Team
+            — Zepia x Peenoise Notify
           </p>
         </div>
         `,
