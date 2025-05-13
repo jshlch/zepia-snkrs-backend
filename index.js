@@ -16,6 +16,7 @@ const supabase = createClient(
 
 const MAX_SESSIONS = 3;
 const TARGET_PRODUCT_IDS = ["ZEPIA_SNKRS_TOOL_30_DAYS"];
+const VALIDITY = 30 // In days
 
 // USEFUL FOR RECURRING PAYMENTS
 // const updateUserByCustomerId = async (customerId, updates) => {
@@ -43,6 +44,13 @@ const isTargetProduct = (session) => TARGET_PRODUCT_IDS.includes(session.metadat
 
 // Modify the isTargetProduct function to check the metadata set inside payment links
 const isForRenewal = (session) => session.custom_fields?.[0]?.text?.value !== null;
+
+// Add x days after base date
+const getFutureDate = (days, baseDate) => {
+  const base = baseDate instanceof Date ? baseDate : new Date();
+  const futureDate = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+  return futureDate.toISOString();
+}
 
 // WEBHOOK
 app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
@@ -77,10 +85,7 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
       const customerEmail = session.customer_details.email || '';
       const isRenewal = isForRenewal(session);
 
-      // Subscription dates
       const now = new Date();
-      const sub_from = now.toISOString();
-      const sub_to = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
       
       const { data: user } = isRenewal
         ? await supabase
@@ -92,6 +97,11 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
       
       // Check if the payment is for renewal and the key provided is valid
       if (isRenewal && user) {
+        const userSubTo = new Date(user.sub_to)
+        const baseDate = userSubTo < now ? now : userSubTo;
+        const subFrom = userSubTo < now ? now.toISOString() : user.sub_from;
+        const subTo = getFutureDate(VALIDITY, baseDate);
+
         await supabase
           .from('users')
           .update({
@@ -99,8 +109,8 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
             payment_id: paymentId,
             stripe_customer_id: customerId,
             status: 'ACTIVE',
-            sub_from,
-            sub_to,
+            sub_from: subFrom,
+            sub_to: subTo,
           })
           .eq('access_key', user.access_key)
 
@@ -116,8 +126,8 @@ app.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, r
           stripe_customer_id: customerId,
           access_key: accessKey,
           email: customerEmail,
-          sub_from,
-          sub_to,
+          sub_from: now.toISOString(),
+          sub_to: getFutureDate(VALIDITY, now),
           session_ids: [],
         });
 
