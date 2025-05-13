@@ -156,7 +156,7 @@ async function getUserByAccessKey(access_key) {
     .eq('access_key', access_key)
     .single();
 
-  if (error || !data) return { user: null, error: 'User not found' };
+  if (error || !data) return { user: null, error: 'Access key not found' };
   return { user: data, error: null };
 }
 
