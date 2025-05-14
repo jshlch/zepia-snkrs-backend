@@ -14,7 +14,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-const MAX_SESSIONS = 3;
+const MAX_SESSIONS = 15;
 const TARGET_PRODUCT_IDS = ["ZEPIA_SNKRS_TOOL_30_DAYS"];
 const VALIDITY = 30 // In days
 
