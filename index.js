@@ -286,5 +286,10 @@ app.get('/api/v1/app', (req, res) => {
   res.json({ version: '1.0.0' });
 });
 
+app.get('/ping', (req, res) => {
+  console.log(`📡 Pinged!`);
+  res.status(200).json({ received: true });
+});
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`🚀 Server running on port ${port}`));
